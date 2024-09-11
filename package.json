@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/kraynor4/personal-budget#readme",
   "dependencies": {
-    "express": "^4.20.0"
+    "d3": "^7.9.0",
+    "express": "^5.0.0"
   }
 }

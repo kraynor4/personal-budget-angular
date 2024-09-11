@@ -2,8 +2,10 @@ const express = require('express');
 const fs = require('fs');
 const app = express();
 const port = 3000;
+// const cors = require('cors');
 
 app.use(express.static('public'));
+// app.use(cors());
 
 // const budget = {
 //     myBudget: [
@@ -29,7 +31,7 @@ app.get('/hello', (req, res) => {
 // Endpoint to serve the budget data
 app.get('/budget', (req, res) => {
     // Read the budget.json file
-    fs.readFile('budget.json', 'utf8', (err, data) => {
+    fs.readFile('./budget.json', 'utf8', (err, data) => {
         if (err) {
             console.error('Error reading budget.json:', err);
             res.status(500).send('Server Error');
