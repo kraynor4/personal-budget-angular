@@ -23,14 +23,16 @@
           content="This app is free!!! And you are the only one holding your data!"
       ></pb-article>
 
-      <article>
-        <h1>Chart 1</h1>
-        <p>
-            <canvas id="myChart" width="400" height="400"></canvas>
-        </p>
-      </article>
+       <!-- Chart 1 Section -->
+    <div class="graph-container">
+      <h1>Chart 1</h1>
+      <canvas id="myChart"></canvas>
+    </div>
 
-      <pb-d3js-chart></pb-d3js-chart>
-
-  </div> <!-- Closing div -->
+    <!-- Chart 2 Section (for D3.js) -->
+    <div class="graph-container">
+      <h1>Chart 2</h1>
+      <div id="chart"></div>
+    </div>
+  </div>
 </main>

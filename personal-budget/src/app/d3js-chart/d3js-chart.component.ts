@@ -1,29 +1,31 @@
-import { Component, OnInit, Inject, PLATFORM_ID } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject, PLATFORM_ID } from '@angular/core';
 import * as d3 from 'd3';
 import { DataService } from '../data.service';
 import { isPlatformBrowser } from '@angular/common';
+import { Router, NavigationEnd } from '@angular/router';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'pb-d3js-chart',
   templateUrl: './d3js-chart.component.html',
   styleUrls: ['./d3js-chart.component.scss']
 })
-export class D3jsChartComponent implements OnInit {
+export class D3jsChartComponent implements OnInit, OnDestroy {
 
-  private width = 600;
-  private height = 600;
-  private radius = Math.min(this.width, this.height) / 2;
+  private width = 450;
+  private height = 450;
+  private margin = 40;
+  private radius = Math.min(this.width, this.height) / 2 - this.margin;
   private svg: any;
   private pie: any;
   private arc: any;
   private outerArc: any;
   private color: any;
 
-
   public dataSource = {
     datasets: [
       {
-        data: [''] ,
+        data: [] as number[],
         backgroundColor: [
           '#ffcd56',
           '#ff6384',
@@ -36,48 +38,69 @@ export class D3jsChartComponent implements OnInit {
         ],
       }
     ],
-    labels: ['']
+    labels: [] as string[]
   };
+
+  private routerSubscription: Subscription | null = null;
 
   constructor(
     private dataService: DataService,
+    private router: Router,
     @Inject(PLATFORM_ID) private platformId: Object
   ) {}
 
   ngOnInit(): void {
+    // Listen to route changes and reload the chart when navigation occurs
+    this.routerSubscription = this.router.events.subscribe(event => {
+      if (event instanceof NavigationEnd) {
+        if (isPlatformBrowser(this.platformId)) {
+          this.loadData();
+        }
+      }
+    });
+
     if (isPlatformBrowser(this.platformId)) {
       this.loadData();
     }
   }
 
+  ngOnDestroy(): void {
+    // Cleanup subscription when the component is destroyed
+    if (this.routerSubscription) {
+      this.routerSubscription.unsubscribe();
+    }
+  }
+
   private loadData(): void {
+    // Clear previous SVG (to prevent multiple SVGs being added)
+    d3.select("#chart").selectAll("*").remove();
+
+    // Clear the existing data to avoid duplicates
+    this.dataSource.datasets[0].data = [];
+    this.dataSource.labels = [];
+
     this.dataService.getData().subscribe((res: any) => {
       console.log("Data from server: ", res);
-      // Ensure the data is formatted correctly and loaded into the dataSource
-      // this.dataSource.datasets[0].data = res.myBudget.map((item: any) => item.budget);
-      // this.dataSource.labels = res.myBudget.map((item: any) => item.title);
 
-      this.dataService.getData().subscribe((res: any) => {
-        console.log("Data from server: ", res);
-        for (var i = 0; i < res.myBudget.length; i++) {
-          this.dataSource.datasets[0].data.push(res.myBudget[i].budget);
-          this.dataSource.labels.push(res.myBudget[i].title);
-        }
+      // Populate data and labels
+      res.myBudget.forEach((item: any) => {
+        this.dataSource.datasets[0].data.push(item.budget);
+        this.dataSource.labels.push(item.title);
       });
 
-      // Now that the data is loaded, create the chart
       this.createSvg();
       this.createColors();
-      // this.change(this.dataSource.datasets[0].data);
-      this.change();
+      this.createDonutChart();
     });
   }
 
   private createSvg(): void {
     this.svg = d3.select("#chart")
       .append("svg")
-      .attr("width", this.width)
-      .attr("height", this.height)
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .attr("viewBox", `0 0 ${this.width} ${this.height}`)  // Make the chart responsive
+      .attr("preserveAspectRatio", "xMinYMin meet")  // Preserve the aspect ratio
       .append("g")
       .attr("transform", "translate(" + this.width / 2 + "," + this.height / 2 + ")");
 
@@ -85,94 +108,90 @@ export class D3jsChartComponent implements OnInit {
     this.svg.append("g").attr("class", "labels");
     this.svg.append("g").attr("class", "lines");
 
-    this.pie = d3.pie<any>().sort(null).value((d: any) => d);
-
-    this.arc = d3.arc()
-      .outerRadius(this.radius * 0.8)
-      .innerRadius(this.radius * 0.4);
-
-    this.outerArc = d3.arc()
-      .innerRadius(this.radius * 0.9)
-      .outerRadius(this.radius * 0.9);
+    this.pie = d3.pie<any>().sort(null).value((d: any) => d.value);
   }
 
   private createColors(): void {
     this.color = d3.scaleOrdinal()
-      .range(["#ffcd56", "#ff6384", "#36a2eb", "#fd6b19", "#83FF33", "#F633FF", "#FF3333", "#a38080"]);
+      .domain(this.dataSource.labels)
+      .range(this.dataSource.datasets[0].backgroundColor);
   }
 
-  private change(): void {
-    var data  = this.dataSource.datasets[0].data;
-    console.log("Data: ", data);
-    const slice = this.svg.select(".slices").selectAll("path.slice")
-      .data(this.pie(data), (d: any) => d.index);
+  private createDonutChart(): void {
+    const data = this.dataSource.labels.map((label, i) => ({
+      key: label,
+      value: this.dataSource.datasets[0].data[i]
+    }));
 
-    slice.enter()
-      .insert("path")
-      .style("fill", (d: any) => this.color(d.index))
-      .attr("class", "slice");
+    const pieData = this.pie(data);
 
-    slice.transition().duration(1000)
-      .attrTween("d", (d: any) => {
-        const interpolate = d3.interpolate((this as any)._current || d, d);
-        (this as any)._current = interpolate(0);
-        return (t: any) => this.arc(interpolate(t));
+    // Arc generator
+    this.arc = d3.arc()
+      .innerRadius(this.radius * 0.5) // Donut hole size
+      .outerRadius(this.radius * 0.8);
+
+    // Outer arc for labels
+    this.outerArc = d3.arc()
+      .innerRadius(this.radius * 0.9)
+      .outerRadius(this.radius * 0.9);
+
+    // Add slices
+    this.svg.selectAll('allSlices')
+      .data(pieData)
+      .enter()
+      .append('path')
+      .attr('d', this.arc)
+      .attr('fill', (d: any) => this.color(d.data.key))
+      .attr("stroke", "white")
+      .style("stroke-width", "2px")
+      .style("opacity", 0.7);
+
+    // Add polylines between chart and labels
+    this.svg.selectAll('allPolylines')
+      .data(pieData)
+      .enter()
+      .append('polyline')
+      .attr("stroke", "black")
+      .style("fill", "none")
+      .attr("stroke-width", 1)
+      .attr('points', (d: any) => {
+        const posA = this.arc.centroid(d);
+        const posB = this.outerArc.centroid(d);
+        const posC = this.outerArc.centroid(d);
+        const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+        posC[0] = this.radius * 0.95 * (midAngle < Math.PI ? 1 : -1);
+        return [posA, posB, posC];
       });
 
-    slice.exit().remove();
-
-    const text = this.svg.select(".labels").selectAll("text")
-      .data(this.pie(data), (d: any) => d.index);
-
-    text.enter().append("text").attr("dy", ".35em")
-      .text((d: any) => this.dataSource.labels[d.index]);
-
-    const radius = this.radius;
-    const outerArc = this.outerArc;
-
-    text.transition().duration(1000)
-      .attrTween("transform", (d: any) => {
-        const interpolate = d3.interpolate((this as any)._current || d, d);
-        (this as any)._current = interpolate(0);
-        return (t: any) => {
-          const d2 = interpolate(t);
-          const pos = outerArc.centroid(d2);
-          pos[0] = radius * (this.midAngle(d2) < Math.PI ? 1 : -1);
-          return "translate(" + pos + ")";
-        };
+    // Add labels for category names
+    this.svg.selectAll('allLabels')
+      .data(pieData)
+      .enter()
+      .append('text')
+      .text((d: any) => d.data.key)
+      .attr('transform', (d: any) => {
+        const pos = this.outerArc.centroid(d);
+        const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+        pos[0] = this.radius * 0.99 * (midAngle < Math.PI ? 1 : -1);
+        return 'translate(' + pos + ')';
       })
-      .styleTween("text-anchor", (d: any) => {
-        const interpolate = d3.interpolate((this as any)._current || d, d);
-        (this as any)._current = interpolate(0);
-        return (t: any) => {
-          const d2 = interpolate(t);
-          return this.midAngle(d2) < Math.PI ? "start" : "end";
-        };
+      .style('text-anchor', (d: any) => {
+        const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+        return (midAngle < Math.PI ? 'start' : 'end');
       });
 
-    text.exit().remove();
-
-    const polyline = this.svg.select(".lines").selectAll("polyline")
-      .data(this.pie(data), (d: any) => d.index);
-
-    polyline.enter().append("polyline");
-
-    polyline.transition().duration(1000)
-      .attrTween("points", (d: any) => {
-        const interpolate = d3.interpolate((this as any)._current || d, d);
-        (this as any)._current = interpolate(0);
-        return (t: any) => {
-          const d2 = interpolate(t);
-          const pos = outerArc.centroid(d2);
-          pos[0] = radius * 0.95 * (this.midAngle(d2) < Math.PI ? 1 : -1);
-          return [this.arc.centroid(d2), outerArc.centroid(d2), pos];
-        };
-      });
-
-    polyline.exit().remove();
-  }
-
-  private midAngle(d: any): number {
-    return d.startAngle + (d.endAngle - d.startAngle) / 2;
+    // Add numerical value labels inside the pie slices
+    this.svg.selectAll('allValues')
+      .data(pieData)
+      .enter()
+      .append('text')
+      .text((d: any) => d.data.value)  // Display the value (budget amount)
+      .attr('transform', (d: any) => {
+        const pos = this.arc.centroid(d);  // Position inside the slice
+        return `translate(${pos})`;
+      })
+      .style('text-anchor', 'middle')
+      .style('font-size', '12px')  // Adjust font size
+      .style('fill', 'white',);  // Color the text to stand out against the pie slices
   }
 }

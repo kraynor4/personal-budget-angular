@@ -348,8 +348,8 @@ template {
   display: none;
 }
 
-//old main.css code
-/* Add your CSS code here */
+//css code
+
 html, body {
   font-size: 10px;
   font-family: Tahoma, Arial;
@@ -381,6 +381,15 @@ header h2 {
   color: #4d5791;
 }
 
+pb-breadcrumbs {
+  font-size: 1.6rem;
+  color: black;
+  font-family: Tahhoma, Arial;
+  font-weight: bold;
+
+}
+
+
 main {
   padding: 40px;
 }
@@ -392,6 +401,20 @@ main article {
   text-align: justify;
   margin: 0;
 }
+
+/* Graph container */
+.graph-container {
+  flex: 1 1 100%;
+  max-width: 400px;
+  margin: 30px auto;
+  text-align: center;
+}
+
+.graph-container canvas {
+  max-width: 100%;
+  height: auto;
+}
+
 
 footer {
   background-color: #b4c6f9;

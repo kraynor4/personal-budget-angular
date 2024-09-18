@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, AfterViewInit, Inject, PLATFORM_ID } from '@angular/core';
 import { Chart, registerables } from 'chart.js';
 import { isPlatformBrowser } from '@angular/common';
-import { DataService } from '../data.service';  // Import the DataService
+import { DataService } from '../data.service';
 
 @Component({
   selector: 'pb-homepage',
